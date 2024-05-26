@@ -1,44 +1,56 @@
-// Copyright (c) 2024 deanosrs and spacek531
+// Copyright (c) 2024 spacek531
+// extension of the plugin of the same name by Deanosrs
 
 function TriggerBase() {
     this.type = "TriggerBase";
-    this.enabled = true;
-}
-TriggerBase.prototype.getDataToPersist = function() {
-    return {
-        type: this.type,
-        enabled: this.enabled
-    };
-}
-TriggerBase.prototype.poll = function() {
-    return false
-}
-
-function RideEntersTrigger = function() {
-    AnimationTriggerBase.call(this)
-    this.type = "RideEntersTrigger"
-    this.minHeight = null
-    this.maxHeight = null
-    this.tile = null
-    this.rideId = null
-    
-}
-RideEntersTrigger.prototype.getDataToPersist = function() {
+    this.name = "Trigger";
+    this.enabled = false;
+    this.targetAnimations = [];
+};
+function TriggerBase.prototype.getDataToPersist() {
     return {
         type: this.type,
         enabled: this.enabled,
-        minHeight: this.minHeight,
-        maxHeight: this.maxHeight,
-        tile: this.tile,
-        rideId: this.rideId
-    }
-}
-
-AnimationTriggerBase.prototype.test = function() {
+        name: this.name,
+        targetAnimations: this.targetAnimations
+    };
+};
+function TriggerBase.prototype.poll() {
     return false
-}
+};
+
+function OnLoadTrigger() {
+    TriggerBase.call(this);
+    this.type = "OnLoadTrigger";
+};
+
+function PositionTrigger() {
+    TriggerBase.call(this);
+    this.type = "PositionTrigger";
+    this.minPosition = null;
+    this.maxPosition = null;
+};
+function PositionTrigger.prototype.getDataToPersist() {
+    data = TriggerBase.prototype.getDataToPersist.call(this);
+    data.minPosition = this.minPosition;
+    data.maxPosition = this.maxPosition;
+    return data;
+};
+
+function RideVehicleTrigger() {
+    PositionTrigger.call(this)
+    this.cars = []
+};
+function RideVehicleTrigger.prototype.getDataToPersist()
+{
+    data = PositionTrigger.prototype.getDataToPersist.call(this);
+    data.cars = this.cars;
+    return data;
+};
+
 
 function Animation() {
+    this.enabled = true;
     
 }
 
@@ -93,14 +105,12 @@ AnimationService.prototype.removeAnimationRun = function(t) {
 }
 
 registerPlugin({
-    name: "Animator",
+    name: "Animator-2",
     version: "0.0.2",
-    authors: ["deanosrs","spacek"],
+    authors: ["spacek"],
     type: "local",
     licence: "GPL-3.0",
     minApiVersion: 56,
     targetApiVersion: 56,
-    main: function() {
-        Qt || (Qt = new AnimationServicePrototype)
-    }
-})
+    main: function() {console.log("Animator2 Hello World!");}
+});
