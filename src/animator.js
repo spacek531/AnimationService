@@ -1,7 +1,7 @@
 // Copyright (c) 2024 spacek531
 // inspired by the animator-0.0.1-lc-r3.js plugin copyrigt deanosrs 2024, released under GPL 3.0.
-
 var kPluginVersion = "0.0.2";
+var kParkStorageKey = "AnimationService";
 var gAnimationService = null;
 
 // Utility functions
@@ -53,7 +53,9 @@ var SerializableBase = (function() {
                 data[arrayName].push(this[arrayName][k].serialize)
             }
         }
-        return this.serializableData.reduce(function(obj2, key) {if (key in this){obj2[key] = this[key];} return obj2;},data);
+        data = this.serializableProperties.reduce(function(obj2, key) {if (key in this){obj2[key] = this[key];} return obj2;},data);
+        console.log("serialize data for type: "+this.type)
+        return data
     };
     SerializableBase.prototype.deserialize = function(data)
     {
@@ -61,14 +63,14 @@ var SerializableBase = (function() {
         {
             if (this.serializableProperties[i] in data)
             {
-                this[serializableProperties[i]] = data[serializableProperties[i]];
+                this[this.serializableProperties[i]] = data[this.serializableProperties[i]];
             }
         }
-        for (var i = 0; i < data.serializeObjectArrays.length; i++)
+        for (var i = 0; i < this.serializeObjectArrays.length; i++)
         {
             var arrayName = this.serializeObjectArrays[i];
             var arrayData = data[arrayName];
-            if (arrayData !== null && this[arrayName] !== null)
+            if (Array.isArray(arrayData))
             {
                 for (var k = 0; k < arrayData.length; k++)
                 {
@@ -80,6 +82,18 @@ var SerializableBase = (function() {
                         this[arrayName].push(objectElement);
                     }
                 }
+            }
+        }
+    }
+    SerializableBase.prototype.delete = function()
+    {
+        for (var i = 0; i < this.serializeObjectArrays.length; i++)
+        {
+            var objectArray = this[this.serializeObjectArrays[i]];
+            for (var k = 0; k < this[this.serializeObjectArrays[i]].length; k++)
+            {
+                objectArray[k].delete();
+                objectArray[k] = null;
             }
         }
     }
@@ -430,7 +444,7 @@ var AnimationBase = (function(SerializableBase) {
     };
     AnimationBase.prototype.tick = function(globalCurrentTick)
     {
-        for (var i = 0; i < this.playingAnimations.length)
+        for (var i = 0; i < this.playingAnimations.length; i++)
         {
             this.playingAnimations[i].nextTick(globalCurrentTick);
         }
@@ -455,28 +469,46 @@ var AnimationBase = (function(SerializableBase) {
         }
         return data;
     };
+    AnimationBase.prototype.delete = function()
+    {
+        SerializableBase.prototype.delete.call(this)
+        for (var i = 0; i < this.playingAnimations.length; i++)
+        {
+            delete this.playingAnimations[i];
+        }
+    }
     return AnimationBase;
 })(SerializableBase);
 SerializableTypes.AnimationBase = AnimationBase;
 
 var AnimationService = (function(SerializableBase) {
-    __extends(AnimationService, SerializableBase);
+    __extends(AnimationService,SerializableBase);
     function AnimationService()
     {
         SerializableBase.call(this);
         this.type = "AnimationService";
-        this.tickCount = 0;
-        this.version = kPluginVersion;
-        this.triggers = [];
-        this.animationsMap = {}; // fast lookup of animations by name
-        this.animations = [];
-        this.triggerMap = {}; // fast lookup of triggers by name
-        this.paused = false;
+        this.initialize();
+        this.addSerializableProperties(["tickCount","version","paused","authors"]);
         this.addSerializableArrays(["triggers","animations"]);
-        this.addSerializableProperties(["tickCount","version","paused"]);
         context.subscribe("interval.tick",this.tick.bind(this));
-        context.subscribe("map.loaded",this.newMap.bind(this));
-        console.log("AnimationService initialized");
+        context.subscribe("map.changed",this.newMap.bind(this));
+        context.subscribe("map.save",this.save.bind(this));
+        if (["normal","title","scenario_editor","track_designer","track_manager"].indexOf(context.mode) > -1)
+        {
+            this.newMap();
+        }
+    };
+    AnimationService.prototype.initialize = function()
+    {
+        this.tickCount = 0; // how many ticks have elapsed under the plugin's purview
+        this.paused = false; // if the animation service is halted
+        this.version = kPluginVersion; // the version of the saved animation
+        this.authors = []; // the authors of the saved animation
+        this.triggers = [];
+        this.animations = [];
+        this.triggerMap = {}; // easy lookup of triggers by name
+        this.animationMap = {}; // easy lookup of animations by name
+        this.shouldSave = false;
     };
     AnimationService.prototype.tick = function()
     {
@@ -498,37 +530,64 @@ var AnimationService = (function(SerializableBase) {
         }
         
     };
-    AnimationService.prototype.serialize = function()
+    AnimationService.prototype.deserialize = function()
     {
-        var data = SerializableBase.prototype.serialize.call(this);
-    };
-    AnimationService.prototype.deserialize = function(data)
-    {
-        SerializableBase.prototype.deserialize.call(this, data);
-    };
-    AnimationService.prototype.load = function()
-    {
-        
+        this.initialize();
+        var data = {}
+        for (var i = 0; i < this.serializableProperties.length; i++)
+        {
+            var datum = context.getParkStorage(kParkStorageKey).get(this.serializableProperties[i]);
+            data[this.serializableProperties[i]] = datum === undefined ? null : datum;
+        }
+        for (var i = 0; i < this.serializeObjectArrays.length; i++)
+        {
+            var datum = context.getParkStorage(kParkStorageKey).get(this.serializeObjectArrays[i]);
+            data[this.serializableProperties[i]] = datum === undefined ? null : datum;
+        }
+        this.shouldSave = data.version !== null;
+        if (this.shouldSave)
+        {
+            SerializableBase.prototype.deserialize.call(this,data);
+        }
     };
     AnimationService.prototype.unload = function()
     {
-        
+        this.delete();
     };
     AnimationService.prototype.newMap = function()
     {
-        console.log("new map is loaded!")
         this.unload();
-        this.load();
+        this.deserialize();
     };
+    AnimationService.prototype.serialize = function()
+    {
+        this.serialize()
+        this.shouldSave = true;
+        for (var i = 0; i < this.serializableProperties.length; i++)
+        {
+            var key = this.serializableProperties[i]
+            context.getParkStorage(kParkStorageKey).set(key, this[key]);
+        }
+        for (var i = 0; i < this.serializeObjectArrays.length; i++)
+        {
+            var key = this.serializeObjectArrays[i]
+            context.getParkStorage(kParkStorageKey).set(key, this[key]);
+        }
+    };
+    AnimationService.prototype.save = function()
+    {
+        this.shouldSave && this.serialize()
+    };
+    return AnimationService;
 })(SerializableBase);
 
 registerPlugin({
     name: "Animator-2",
     version: kPluginVersion,
-    authors: ["spacek"],
+    authors: ["spacek","deanosrs"],
     type: "intransient",
     licence: "GPL-3.0",
     minApiVersion: 56,
     targetApiVersion: 56,
-    main: function() {gAnimationService = new AnimationService() };
-})
+    main: function() {gAnimationService = new AnimationService(); globalThis.animation = gAnimationService;}
+});
