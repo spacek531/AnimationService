@@ -1,12 +1,11 @@
 // Copyright (c) 2024 spacek531
 // inspired by the animator-0.0.1-lc-r3.js plugin copyrigt deanosrs 2024, released under GPL 3.0.
-var kPluginVersion = "0.1.0";
+var kPluginVersion = "0.1.1";
 var kParkStorageKey = "AnimationService";
 var gAnimationService = null;
 
 // Remove before shipment
 var development = true;
-
 if (development)
 {
     function stacktrace() {
@@ -246,7 +245,7 @@ var SensorEntityPropertyComparison = (function(SensorBase) {
                 
                 var inclusive = this.minValue ===null || value >= this.minValue && this.maxValue === null || value <= this.maxValue;
                 var exclusive = this.minValue === null || value > this.minValue && this.maxValue === null || value < this.maxValue;
-                //console.log("Testing entity property, entity[".concat(this.entities[i],"].",this.property,": ",value," is ",this.minValue, "-",this.maxValue,this.inclusive? " inclusive": " exclusive"));
+                //console.log("Testing entity property, entity[".concat(this.entities[i],"].",this.property,": ",value," is ",this.minValue, "-",this.maxValue, this.inclusive? " inclusive": " exclusive"));
                 if (this.inclusive? inclusive: exclusive)
                 {
                     return { type: this.type, entityType: entity.type, id: entity.id, property: this.property, value: entity[this.property] };
@@ -432,54 +431,104 @@ var ActionExecuteAction = (function(ActionBase) {
         ActionBase.call(this);
         this.type = "ActionExecuteAction";
         this.action = null;
-        this.arguments = {};
+        this.arguments = [{}];
         this.addSerializableProperties(["action","arguments"]);
     };
     ActionExecuteAction.prototype.execute = function(storage)
     {
         if (this.action)
         {
-            context.executeAction(this.action,this.arguments,function(){});
+            for (var i = 0; i < this.arguments.length; i++)
+            {
+                context.executeAction(this.action,this.arguments[i],function(){});
+            }
         }
     };
     return ActionExecuteAction;
 })(ActionBase);
 SerializableTypes.ActionExecuteAction = ActionExecuteAction;
 
-// not verified
-var ActionCarSetProperties = (function(ActionBase) {
-    __extends(ActionCarSetProperties, ActionBase);
-    function ActionCarSetProperties()
+function ApplyPropertiesToEntity(entity, properties)
+{
+    for (var key in properties)
+    {
+        entity[key] = properties[key];
+    }
+}
+
+function ApplyPropertiesToTrain(id, trainProperties)
+{
+    var car = map.getEntity(id);
+    for (var i = 0; i < trainProperties.length && car; i++)
+    {
+        ApplyPropertiesToEntity(car, trainProperties[i]);
+        car = car.nextCarOnTrain && map.getEntity(car.nextCarOnTrain);
+    }
+}
+
+// verified working
+var ActionTrainSetProperties = (function(ActionBase) {
+    __extends(ActionTrainSetProperties, ActionBase);
+    function ActionTrainSetProperties()
     {
         ActionBase.call(this);
-        this.type = "ActionCarSetProperties";
-        this.carProperties = []; // array of dictionaries where index is car number
-        this.addSerializableProperties(["carProperties"]);
+        this.type = "ActionTrainSetProperties";
+        this.trains = null; // array of ids of train lead cars. Null for using the triggering train.
+        this.trainProperties = []; // array of dictionaries where index is car number
+        this.addSerializableProperties(["trainProperties","trains"]);
     }
-    ActionCarSetProperties.prototype.execute = function(storage)
+    ActionTrainSetProperties.prototype.execute = function(storage)
     {
-        var trigger = storage.trigger
-        if (trigger.entityType != "car" || typeof trigger.id != "number")
+        if (this.trains !== null)
         {
-            //console.log("couldnt find necessary values!",trigger);
+            for (var i = 0; i < this.trains.length; i++)
+            {
+                
+                console.log("applying to train",this.trainProperties);
+                ApplyPropertiesToTrain(this.trains[i],this.trainProperties);
+            }
             return;
         }
-        var car = map.getEntity(trigger.id);
-        for (var i = 0; i < this.carProperties.length && car; i++)
+        if (("entityType" in storage.trigger) && ("id" in storage.trigger))
         {
-            //console.log("setting properties of car",i,properties);
-            var properties = this.carProperties[i];
-            for (var key in properties)
-            {
-                console.log(key, properties[key]);
-                car[key] = properties[key];
-            }
-            car = car.nextCarOnTrain;
+            console.log("applying to train",this.trainProperties);
+            ApplyPropertiesToTrain(storage.trigger.id, this.trainProperties);
         }
     };
-    return ActionCarSetProperties;
+    return ActionTrainSetProperties;
 })(ActionBase);
-SerializableTypes.ActionCarSetProperties = ActionCarSetProperties;
+SerializableTypes.ActionTrainSetProperties = ActionTrainSetProperties;
+
+var ActionEntitySetProperties = (function(ActionBase) {
+    __extends(ActionEntitySetProperties, ActionBase);
+    function ActionEntitySetProperties()
+    {
+        ActionBase.call(this);
+        this.type = "ActionEntitySetProperties";
+        this.entities = nulll; // array of ids of entities to apply properties to. Null for triggering entity.
+        this.properties = {};
+        this.addSerializableProperties(["entities","properties"]);
+    }
+    ActionEntitySetProperties.prototype.execute = function(storage)
+    {
+        if (this.entities !== null)
+        {
+            for (var i = 0; i < this.entities.length; i++)
+            {
+                var entity = map.getEntity(this.entities[i])
+                entity && ApplyPropertiesToEntity(entity, this.properties);
+            }
+            return;
+        }
+        if ("entityType" in storage.trigger && "id" in storage.trigger)
+        {
+            var entity = map.getEntity(storage.trigger.id)
+            entity && ApplyPropertiesToEntity(entity, this.properties);
+        }
+    };
+    return ActionEntitySetProperties;
+})(ActionBase);
+SerializableTypes.ActionEntitySetProperties = ActionEntitySetProperties;
 
 // not verified
 var ActionPlayAnimation = (function(ActionBase) {
@@ -621,7 +670,20 @@ newAction = function(actionType)
     this.actions.push(newAction);
     return newAction
 }
-    
+addAction = function(datastring)
+{
+    if (datastring === undefined)
+    {
+        console.log("Usage: addAction(datastring: string): ActionBase where datastring is json representing an action");
+        return;
+    }
+    var data = JSON.parse(datastring);
+    var newAction = new SerializableTypes[data.type]();
+    newAction.deserialize(data);
+    this.actions.push(newAction);
+    return newAction;
+};
+
 // Triggers
 var TriggerBase = (function (SerializableBase) {
     __extends(TriggerBase,SerializableBase)
@@ -692,7 +754,11 @@ var TriggerBase = (function (SerializableBase) {
     TriggerBase.prototype.newAction = function(actionType)
     {
         return newAction.call(this, actionType);
-    }
+    };
+    TriggerBase.prototype.addAction = function(actionType)
+    {
+        return addAction.call(this, actionType);
+    };
     return TriggerBase;
 })(SerializableBase);
 SerializableTypes.TriggerBase = TriggerBase;
@@ -719,7 +785,7 @@ var AnimationFrame = (function(SerializableBase) {
     {
         SerializableBase.call(this);
         this.type = "AnimationFrame";
-        this.index = 0;
+        this.index = null;
         this.minIndex = null;
         this.maxIndex = null;
         this.actions = [];
@@ -743,6 +809,10 @@ var AnimationFrame = (function(SerializableBase) {
     {
         return newAction.call(this, actionType);
     }
+    AnimationFrame.prototype.addAction = function(actionType)
+    {
+        return addAction.call(this, actionType);
+    };
     return AnimationFrame;
 })(SerializableBase);
 SerializableTypes.AnimationFrame = AnimationFrame;
@@ -758,14 +828,14 @@ var AnimationPlayer = (function(SerializableBase) {
         this.currentFrame = -1; // initialize at -1 to trigger inequal comparison
         this.currentLoop = 0;
         this.currentStartFrame = 0;
-        if (animationBase.persistentStorage)
+        this.storage = {};
+        if (animationBase && animationBase.persistentStorage)
         {
             // AnimationPlayer sets this when deserializing
             this.storage = animationBase.storage;
         }
-        else
+        else if (animationBase)
         {
-            this.storage = {};
             Object.assign(this.storage, animationBase.storage);
         }
         this.addSerializableProperties(["currentTick","currentFrame","currentLoop","storage","currentStartFrame"]);
@@ -779,6 +849,7 @@ var AnimationPlayer = (function(SerializableBase) {
             var frame = this.animation.animationFrames[i];
             if (frame.execute(currentFrame, this.storage) && i == this.currentStartFrame)
             {
+                console.log("animation frame",i,"is finished");
                 this.currentStartFrame++;
             }
         }
@@ -857,6 +928,10 @@ var AnimationBase = (function(SerializableBase) {
             {
                 var player = new AnimationPlayer(this);
                 player.deserialize(data.playingAnimations[i]);
+                if (this.persistentStorage)
+                {
+                    player.storage = this.storage;
+                }
                 this.playingAnimations.push(player);
             }
         }
@@ -879,6 +954,7 @@ var AnimationBase = (function(SerializableBase) {
             this.playingAnimations[i].delete();
             this.playingAnimations[i] = null;
         }
+        this.playingAnimations = null
     };
     AnimationBase.prototype.rename = function(newName)
     {
@@ -889,6 +965,19 @@ var AnimationBase = (function(SerializableBase) {
     AnimationBase.prototype.newFrame = function()
     {
         var newFrame = new AnimationFrame();
+        this.animationFrames.push(newFrame);
+        return newFrame;
+    };
+    AnimationBase.prototype.addFrame = function(datastring)
+    {
+        if (datastring === undefined)
+        {
+            console.log("Usage: addFrame(datastring: string): AnimationFrame where datastring is json representing an animation frame");
+            return;
+        }
+        var data = JSON.parse(datastring);
+        var newFrame = new SerializableTypes[data.type]();
+        newFrame.deserialize(data);
         this.animationFrames.push(newFrame);
         return newFrame;
     };
@@ -998,14 +1087,12 @@ var AnimationService = (function(SerializableBase) {
         }
         this.deserialize(data);
         this.triggerOnLoad();
-        console.log("Loaded with ".concat(this.animations.length," animations and ",this.triggers.length," triggers"));
     };
     AnimationService.prototype.parse = function(input)
     {
         var data = JSON.parse(input)
         this.deserialize(data);
         this.triggerOnLoad();
-        console.log("Loaded with ".concat(this.animations.length," animations and ",this.triggers.length," triggers"));
     };
     AnimationService.prototype.clearBuffer = function()
     {
@@ -1026,6 +1113,7 @@ var AnimationService = (function(SerializableBase) {
         this.triggersMap = BuildMap(this.triggers);
         this.animationsMap = BuildMap(this.animations);
         this.shouldSave = true;
+        console.log("AnimationService loaded with ".concat(this.animations.length," animations and ",this.triggers.length," triggers"));
         if (this.paused)
         {
             console.log("Notice: AnimationService is paused");
@@ -1049,12 +1137,12 @@ var AnimationService = (function(SerializableBase) {
         {
             this.deserialize(data);
             this.triggerOnLoad();
-            console.log("AnimationService loaded ".concat(this.animations.length," animations and ",this.triggers.length," triggers"));
         }
     };
     AnimationService.prototype.unload = function()
     {
         this.delete();
+        this.initialize();
     };
     AnimationService.prototype.newMap = function()
     {
@@ -1208,6 +1296,16 @@ var AnimationService = (function(SerializableBase) {
             }
             return "could not find trigger by name: ".concat(name);
         }
+    };
+    AnimationService.prototype.getAnimation = function(name)
+    {
+        if (name in this.animationsMap)
+            return this.animationsMap[name];
+    };
+    AnimationService.prototype.getTrigger = function(name)
+    {
+        if (name in this.triggersMap)
+            return this.triggersMap[name];
     };
     AnimationService.prototype.addAnimation = function(datastring)
     {
