@@ -1,8 +1,10 @@
 // Copyright (c) 2024 spacek531
 // inspired by the animator-0.0.1-lc-r3.js plugin copyrigt deanosrs 2024, released under GPL 3.0.
-var kPluginVersion = "0.2.1";
+var kPluginVersion = "0.3.0";
 var kParkStorageKey = "AnimationService";
 var gAnimationService = null;
+
+var yawName = "yaw"
 
 var PluginMetadata = {
     name: "AnimationService Spacek",
@@ -70,33 +72,39 @@ function checkEntityPosition(entity)
 }
 
 // use anywhere checking arbitrary entity properties
-function getEntityPropertyFilterYaw(entity, key, maxRotationFrames)
+function getEntityPropertyFilterYaw(entity, key, numberYawValues)
 {
-    return key == "yawRotation" ? entity[key] * maxRotationFrames / entity.maxRotationFrames : entity[key];
+    return key == yawName ? entity[key] * numberYawValues / entity.numberYawValues : entity[key];
 }
 
 // use anywhere setting arbitrary entity properties
-function setEntityPropertyFilterYaw(entity, key, value, maxRotationFrames)
+function setEntityPropertyFilterYaw(entity, key, value, numberYawValues)
 {
-    entity[key] = key == "yawRotation" ? value * entity.maxRotationFrames / maxRotationFrames : value;
+    entity[key] = key == yawName ? value * entity.numberYawValues / numberYawValues : value;
 }
 
-function applyPropertiesToEntity(entity, properties, maxRotationFrames)
+function applyPropertiesToEntity(entity, properties, numberYawValues)
 {
     for (var key in properties)
     {
-        setEntityPropertyFilterYaw(entity, key, properties[key], maxRotationFrames);
+        setEntityPropertyFilterYaw(entity, key, properties[key], numberYawValues);
     }
 }
 
-function applyPropertiesToTrain(id, trainProperties, maxRotationFrames)
+function applyPropertiesToTrain(id, trainProperties, numberYawValues)
 {
     var car = map.getEntity(id);
     for (var i = 0; i < trainProperties.length && car; i++)
     {
-        applyPropertiesToEntity(car, trainProperties[i], maxRotationFrames);
+        applyPropertiesToEntity(car, trainProperties[i], numberYawValues);
         car = car.nextCarOnTrain && map.getEntity(car.nextCarOnTrain);
     }
+}
+
+// matches signatures found in https://github.com/bameyrick/js-easing-functions/blob/master/src/index.ts
+function lerp(elapsed, initialValue, amountOfChange, duration)
+{
+    return amountOfChange * elapsed / duration + initialValue;
 }
 
 // User Interface
@@ -141,6 +149,7 @@ var SerializableBase = (function() {
     function SerializableBase()
     {
         this.serializableProperties = ["type"];
+        this.alwaysSerialize = ["maxYawValue", "type"]; // will only serialize if also in serializableproperties
         this.serializeObjectArrays = [];
         this.type = "SerializableBase";
     }
@@ -173,7 +182,7 @@ var SerializableBase = (function() {
         {
             // if the value is default, don't serialize it
             var key = this.serializableProperties[i]
-            if (key != "type" && this[key] == testObject[key] && !debugSerialize)
+            if (this.alwaysSerialize.indexOf(key) < 0 && this[key] == testObject[key] && !debugSerialize)
             {
                 continue;
             }
@@ -279,16 +288,16 @@ var SensorEntityPropertiesEquals = (function(SensorBase) {
     {
         SensorBase.call(this);
         this.type = "SensorEntityPropertiesEquals";
-        this.values = {}; // Dictionary<any>
+        this.properties = {}; // Dictionary<any>
         this.entities = []; // Array<number>
-        this.maxRotationFrames = 32; // the number of yaw frames the author designed for
-        this.addSerializableProperties(["values","entities","maxRotationFrames"]);
+        this.numberYawValues = 32; // the number of yaw frames the author designed for
+        this.addSerializableProperties(["properties","entities","numberYawValues"]);
     };
     SensorEntityPropertiesEquals.prototype.test = function()
     {
-        if (this.values.length == 0)
+        if (this.properties.length == 0)
         {
-            console.log("SensorEntityPropertiesEquals values has no values!");
+            console.log("SensorEntityPropertiesEquals properties has no values!");
             return;
         }
         var success = null;
@@ -297,16 +306,16 @@ var SensorEntityPropertiesEquals = (function(SensorBase) {
             var entity = map.getEntity(this.entities[i]);
             if (entity != null)
             {
-                for (var key in this.values)
+                for (var key in this.properties)
                 {
-                    success = getEntityPropertyFilterYaw(entity, key, this.maxRotationFrames) == this.values[key];
+                    success = getEntityPropertyFilterYaw(entity, key, this.numberYawValues) == this.properties[key];
                     if (!success)
                     {
                         return null;
                     }
                 }
             }
-            return { type: this.type, entityType: entity.type, id: entity.id, values: this.values };
+            return { type: this.type, entityType: entity.type, id: entity.id, properties: this.properties };
         }
         return null;
     };
@@ -326,8 +335,8 @@ var SensorEntityPropertyComparison = (function(SensorBase) {
         this.inclusive = true;
         this.property = "";
         this.entities = []; // Array<number>
-        this.maxRotationFrames = 32; // the number of yaw frames the author designed for
-        this.addSerializableProperties(["minValue","maxValue","property","inclusive","entities","maxRotationFrames"]);
+        this.numberYawValues = 32; // the number of yaw frames the author designed for
+        this.addSerializableProperties(["minValue","maxValue","property","inclusive","entities","numberYawValues"]);
     };
     SensorEntityPropertyComparison.prototype.test = function()
     {
@@ -336,7 +345,7 @@ var SensorEntityPropertyComparison = (function(SensorBase) {
             var entity = map.getEntity(this.entities[i]);
             if (entity != null)
             {
-                var value = getEntityPropertyFilterYaw(entity, this.property, this.maxRotationFrames);
+                var value = getEntityPropertyFilterYaw(entity, this.property, this.numberYawValues);
                 
                 var inclusive = this.minValue ===null || value >= this.minValue && this.maxValue === null || value <= this.maxValue;
                 var exclusive = this.minValue === null || value > this.minValue && this.maxValue === null || value < this.maxValue;
@@ -553,10 +562,8 @@ var ActionExecuteAction = (function(ActionBase) {
     };
     ActionExecuteAction.prototype.execute = function(storage)
     {
-        console.log("ActionExecuteAction",this.action);
         for (var i = 0; i < this.arguments.length; i++)
         {
-            console.log("Executing",this.action, this.arguments[i]);
             context.executeAction(this.action,this.arguments[i],function(){});
         }
     };
@@ -573,8 +580,8 @@ var ActionTrainSetProperties = (function(ActionBase) {
         this.type = "ActionTrainSetProperties";
         this.trains = null; // Array<number> | null: ids of train lead cars. Null for the triggering car.
         this.trainProperties = []; // array of dictionaries where index is car number
-        this.maxRotationFrames = 32; // the number of yaw frames the author designed for
-        this.addSerializableProperties(["trainProperties","trains","maxRotationFrames"]);
+        this.numberYawValues = 32; // the number of yaw frames the author designed for
+        this.addSerializableProperties(["trainProperties","trains","numberYawValues"]);
     }
     ActionTrainSetProperties.prototype.execute = function(storage)
     {
@@ -582,20 +589,20 @@ var ActionTrainSetProperties = (function(ActionBase) {
         {
             for (var i = 0; i < this.trains.length; i++)
             {
-                applyPropertiesToTrain(this.trains[i],this.trainProperties, this.maxRotationFrames);
+                applyPropertiesToTrain(this.trains[i],this.trainProperties, this.numberYawValues);
             }
             return;
         }
         if (("entityType" in storage.trigger) && ("id" in storage.trigger))
         {
-            applyPropertiesToTrain(storage.trigger.id, this.trainProperties, this.maxRotationFrames);
+            applyPropertiesToTrain(storage.trigger.id, this.trainProperties, this.numberYawValues);
         }
     };
     return ActionTrainSetProperties;
 })(ActionBase);
 SerializableTypes.ActionTrainSetProperties = ActionTrainSetProperties;
 
-// not verified
+// verified working
 var ActionTileElementSetProperties = (function(ActionBase) {
     __extends(ActionTileElementSetProperties, ActionBase);
     function ActionTileElementSetProperties()
@@ -730,7 +737,7 @@ var ActionTileElementSetProperties = (function(ActionBase) {
         {
             for (var y = this.minPosition.y; y <= this.maxPosition.y; y++)
             {
-                var tileElements = this.filterTile({x: x, y: y}, true);
+                var tileElements = this.filterTile({x: x, y: y}, false);
                 if (tileElements.length > 0)
                 {
                     var tileManifest = {x: x, y: y, elementIndices: tileElements};
@@ -758,8 +765,8 @@ var ActionEntitySetProperties = (function(ActionBase) {
         this.type = "ActionEntitySetProperties";
         this.entities = null; // Array<number> | null: ids of entities. Null for the triggering entity.
         this.properties = {};
-        this.maxRotationFrames = 32; // the number of yaw frames the author designed for
-        this.addSerializableProperties(["entities","properties","maxRotationFrames"]);
+        this.numberYawValues = 32; // the number of yaw frames the author designed for
+        this.addSerializableProperties(["entities","properties","numberYawValues"]);
     }
     ActionEntitySetProperties.prototype.execute = function(storage)
     {
@@ -768,14 +775,14 @@ var ActionEntitySetProperties = (function(ActionBase) {
             for (var i = 0; i < this.entities.length; i++)
             {
                 var entity = map.getEntity(this.entities[i])
-                entity && applyPropertiesToEntity(entity, this.properties, this.maxRotationFrames);
+                entity && applyPropertiesToEntity(entity, this.properties, this.numberYawValues);
             }
             return;
         }
         if ("entityType" in storage.trigger && "id" in storage.trigger)
         {
             var entity = map.getEntity(storage.trigger.id)
-            entity && applyPropertiesToEntity(entity, this.properties, this.maxRotationFrames);
+            entity && applyPropertiesToEntity(entity, this.properties, this.numberYawValues);
         }
     };
     return ActionEntitySetProperties;
@@ -790,32 +797,159 @@ var ActionEntityTweenProperties = (function(ActionBase) {
         ActionBase.call(this);
         this.type = "ActionEntityTweenProperties";
         this.entities = null; // Array<number> | null: ids of entities. Null for the triggering entity.
-        this.properties = {};
+        this.endProperties = {}; // Dictionary of properties
+        this.id = "unique identifier";
+        this.numberFrames = 0;
+        this.startFrame = 0; // number | null
+        this.endFrame = 1; // number | null
         this.easingStyle = "lerp"; // easing styles to be added at a later date
-        this.startFrame = null; // number | null: 
-        this.maxRotationFrames = 32; // the number of yaw frames the author designed for
-        this.addSerializableProperties(["entities","properties","maxRotationFrames"]);
+        this.numberYawValues = 32; // the number of yaw frames the author designed for
+        this.addSerializableProperties(["entities","endProperties","numberYawValues","numberFrames","startFrame","endFrame","id"]);
     }
     ActionEntityTweenProperties.prototype.execute = function(storage)
     {
-        if (this.entities !== null)
+        var entities = this.entities;
+        if (this.entities == null)
         {
-            for (var i = 0; i < this.entities.length; i++)
+            if (!("entityType" in storage.trigger) && !("id" in storage.trigger))
             {
-                var entity = map.getEntity(this.entities[i])
-                entity && applyPropertiesToEntity(entity, this.properties, this.maxRotationFrames);
+                return;
             }
+            entities = [ storage.trigger.id ];
+        }
+        var interprops = storage.entityTweenProperties;
+        if (!interprops)
+        {
+            interprops = storage.entityTweenProperties = {};
+        }
+        var currentFrame = storage.currentFrame;
+        if (currentFrame === null)
+        {
+            console.log("Cannot tween when currentFrame is null");
             return;
         }
-        if ("entityType" in storage.trigger && "id" in storage.trigger)
+        for (var i = 0; i < this.entities.length; i++)
         {
-            var entity = map.getEntity(storage.trigger.id)
-            entity && applyPropertiesToEntity(entity, this.properties, this.maxRotationFrames);
+            var entity = map.getEntity(entities[i])
+            if (!entity)
+            {
+                continue;
+            }
+            var entprops = interprops[entities[i]];
+            
+            if (!entprops)
+            {
+                // set start frame to -1 so that the entity moves this frame.
+                entprops = {};
+                for (var k = 0; k < this.endProperties; k++)
+                {
+                    this.initializeProperty(entprops, entity, this.endProperties[k]);
+                }
+                interprops[entities[i]] = entprops;
+            }
+            else
+            {
+                for (var k = 0; k < this.endProperties; k++)
+                {
+                    var key = this.endProperties[k];
+                    if (!entprops[key] || entprops[key].id != this.id)
+                    {
+                        this.initializeProperty(entprops, entity, this.endProperties[k]);
+                    }
+                }
+            }
+            // interpolate properties
+            var newProperties = {};
+            for (var k = 0; k < this.endProperties; k++)
+            {
+                var key = this.endProperties[k];
+                var propvals = entprops[key];
+                // do not extrapolate
+                if (propvals.startFrame > currentFrame || propvals.endFrame < currentFrame)
+                {
+                    continue;
+                }
+                newProperties[key] = lerp(currentFrame - propvals.startFrame, propvals.startValue, this.endProperties[key] - propvals.startValue);
+                entprops.startProperties[this.endProperties[k]] = entity[this.endProperties[k]];
+            }
+            applyPropertiesToEntity(entity, newProperties, this.numberYawValues);
+            
+            if (storage.currentFrame == entprops.endFrame)
+            {
+                interprops[key] = null;
+            }
         }
     };
+    ActionEntityTweenProperties.prototype.initializeProperty = function(entprops, entity, key)
+    {
+        entprops[key] = {
+             startFrame: this.startFrame === null ? currentFrame - 1 : this.startFrame,
+             endFrame: this.endFrame === null ? currentFrame + this.numberFrames - 1 : this.endFrame,
+             startValue: entity[key],
+             id: this.id
+        };
+    }
     return ActionEntityTweenProperties;
 })(ActionBase);
 SerializableTypes.ActionEntityTweenProperties = ActionEntityTweenProperties;
+// not verified
+
+var ActionEntityIncrementProperties = (function(ActionBase) {
+    __extends(ActionEntityIncrementProperties, ActionBase);
+    function ActionEntityIncrementProperties()
+    {
+        ActionBase.call(this);
+        this.type = "ActionEntityIncrementProperties";
+        this.entities = null; // Array<number> | null: ids of entities. Null for the triggering entity.
+        this.properties = {}; // Dictionary of properties and the amount to increment by
+        this.startFrame = null;
+        this.endFrame = null;
+        this.numberYawValues = 32; // the number of yaw frames the author designed for
+        this.addSerializableProperties(["entities","properties","numberYawValues","endFrame","startFrame"]);
+    }
+    ActionEntityIncrementProperties.prototype.execute = function(storage)
+    {
+        var entities = this.entities;
+        if (this.entities == null)
+        {
+            if (!("entityType" in storage.trigger) && !("id" in storage.trigger))
+            {
+                return;
+            }
+            entities = [ storage.trigger.id ];
+        }
+        var interprops = storage.entityIncrementProperties;
+        if (!interprops)
+        {
+            interprops = storage.entityIncrementProperties = {};
+        }
+        for (var i = 0; i < this.entities.length; i++)
+        {
+            var entity = map.getEntity(entities[i])
+            if (!entity)
+            {
+                continue;
+            }
+            var entprops = interprops[entities[i]];
+            
+            if (!entprops)
+            {
+                entprops = interprops[entities[i]] = {};
+            }
+            var endFrame = this.endFrame !== null && currentFrame == this.endFrame;
+            var startFrame = this.startFrame !== null && currentFrame == this.startFrame;
+            var newProperties = {}
+            for (key in this.properties)
+            {
+                newProperties[key] = (entprops[key] === undefined || startFrame? entity[key] : entprops[key]) + this.properties[key];
+                entprops[key] = endFrame ? null : newProperties[key];
+            }
+            applyPropertiesToEntity(entity, newProperties, this.numberYawValues);
+        }
+    };
+    return ActionEntityIncrementProperties;
+})(ActionBase);
+SerializableTypes.ActionEntityIncrementProperties = ActionEntityIncrementProperties;
 
 // not verified
 var ActionPlayAnimation = (function(ActionBase) {
@@ -842,6 +976,7 @@ var ActionPlayAnimation = (function(ActionBase) {
                     trigger[key] = this.storage.key;
                 }
                 animation.initialize(trigger,storage.globalCurrentTick);
+                console.log("ActionPlayAnimation playing",target);
             }
         }
     };
@@ -857,8 +992,7 @@ var ActionStopAnimation = (function(ActionBase) {
         ActionBase.call(this);
         this.type = "ActionStopAnimation";
         this.targets = []; // Array<string> names of animations
-        this.storage = {};
-        this.addSerializableProperties(["targets", "storage"]);
+        this.addSerializableProperties(["targets"]);
     }
     ActionStopAnimation.prototype.execute = function(storage)
     {
@@ -868,12 +1002,13 @@ var ActionStopAnimation = (function(ActionBase) {
             var animation = target in gAnimationService.animationsMap && gAnimationService.animationsMap[target];
             if (animation)
             {
-                var trigger = { type: this.type };
-                for (var key in this.storage)
-                {
-                    trigger[key] = this.storage.key;
-                }
-                animation.stop(trigger,storage.globalCurrentTick);
+            //    var trigger = { type: this.type };
+            //    for (var key in this.storage)
+            //    {
+            //        trigger[key] = this.storage.key;
+             ///   }
+                animation.stop(storage.globalCurrentTick);
+                console.log("ActionStopAnimation stopping",target);
             }
         }
     };
@@ -889,8 +1024,8 @@ var ActionAnimationSetProperties = (function(ActionBase) {
         ActionBase.call(this);
         this.type = "ActionAnimationSetProperties";
         this.targets = []; // Array<string>: Names of animations
-        this.targetProperties = {};
-        this.addSerializableProperties(["targets","targetProperties"]);
+        this.properties = {};
+        this.addSerializableProperties(["targets","properties"]);
     }
     ActionAnimationSetProperties.prototype.execute = function(storage)
     {
@@ -900,16 +1035,16 @@ var ActionAnimationSetProperties = (function(ActionBase) {
             var animation = target in gAnimationService.animationsMap && gAnimationService.animationsMap[target];
             if (animation)
             {
-                for (var key in this.targetProperties)
+                for (var key in this.properties)
                 {
                     if (key == "name")
                         
                     {
-                        animation.rename(this.targetProperties.name);
+                        animation.rename(this.properties.name);
                     }
                     else
                     {
-                        animation[key] = this.targetProperties[key];
+                        animation[key] = this.properties[key];
                     }
                 }
             }
@@ -927,8 +1062,8 @@ var ActionTriggerSetProperties = (function(ActionBase) {
         ActionBase.call(this);
         this.type = "ActionTriggerSetProperties";
         this.targets = []; // Array<string>: Names of triggers
-        this.targetProperties = {};
-        this.addSerializableProperties(["targets","targetProperties"]);
+        this.properties = {};
+        this.addSerializableProperties(["targets","properties"]);
     }
     ActionTriggerSetProperties.prototype.execute = function(storage)
     {
@@ -938,15 +1073,15 @@ var ActionTriggerSetProperties = (function(ActionBase) {
             var trigger = target in gAnimationService.triggersMap && gAnimationService.triggersMap[target];
             if (trigger)
             {
-                for (var key in this.targetProperties)
+                for (var key in this.properties)
                 {
                     if (key == "name")
                     {
-                        trigger.rename(this.targetProperties.name);
+                        trigger.rename(this.properties.name);
                     }
                     else
                     {
-                        trigger[key] = this.targetProperties[key];
+                        trigger[key] = this.properties[key];
                     }
                 }
             }
@@ -1216,16 +1351,17 @@ var AnimationBase = (function(SerializableBase) {
         this.playingAnimations.push(newAnimationPlayer);
     };
     // not tested
-    AnimationBase.prototype.stop = function(trigger)
+    AnimationBase.prototype.stop = function(globalCurrentTick)
     {
-        trigger = trigger || {};
-        for (var i = 0; i < this.quitActions; i++)
+        for (var k = 0; k < this.playingAnimations; k++)
         {
-            this.quitActions[i].enabled && this.quitActions[i].execute(trigger);
-        }
-        for (var i = 0; i < this.playingAnimations.length; i++)
-        {
-            this.playingAnimations[i].delete();
+            var storage = this.playingAnimations[k].storage;
+            storage.globalCurrentTick = globalCurrentTick ? storage.globalCurrentTick : storage.globalCurrentTick;
+            for (var i = 0; i < this.quitActions; i++)
+            {
+                this.quitActions[i].enabled && this.quitActions[i].execute(storage);
+            }
+            this.playingAnimations[k].delete();
         }
         this.playingAnimations = []
     };
@@ -1321,6 +1457,10 @@ var AnimationBase = (function(SerializableBase) {
             return;
         }
         var data = JSON.parse(datastring);
+        if (data.type === undefined)
+        {
+            data.type = "AnimationFrame";
+        }
         var newFrame = new SerializableTypes[data.type]();
         newFrame.deserialize(data);
         this.animationFrames.push(newFrame);
@@ -1523,7 +1663,7 @@ var AnimationService = (function(SerializableBase) {
     {
         for (var i = 0; i < this.animations.length; i++)
         {
-            this.animations[i].stop();
+            this.animations[i].stop(this.tickCount);
             this.animations[i].enabled = this.animations[i].defaultEnabled;
             console.log("Set animation ".concat(this.animations[i].name," enabled to ",this.animations[i].enabled));
         }
@@ -1562,7 +1702,7 @@ var AnimationService = (function(SerializableBase) {
                 {
                     this.animations.splice(index);
                 }
-                this.animationsMap[name] = null;
+                this.animationsMap[name] = undefined;
                 return;
             }
             return "could not find animation by name: ".concat(name);
@@ -1572,14 +1712,14 @@ var AnimationService = (function(SerializableBase) {
     {
         if (typeof name == 'string')
         {
-            if (name in this.triggerMap)
+            if (name in this.triggersMap)
             {
-                var index = this.animations.indexOf(this.triggerMap[name]);
+                var index = this.animations.indexOf(this.triggersMap[name]);
                 if (index > -1)
                 {
                     this.triggers.splice(index);
                 }
-                this.triggersMap[name] = null;
+                this.triggersMap[name] = undefined;
                 return;
             }
             return "could not find trigger by name: ".concat(name);
@@ -1603,6 +1743,11 @@ var AnimationService = (function(SerializableBase) {
             return;
         }
         var data = JSON.parse(datastring);
+        if (data.type != "AnimationBase")
+        {
+            console.log("This is not an animation");
+            return;
+        }
         var newAnimation = new SerializableTypes[data.type]();
         newAnimation.deserialize(data);
         this.animations.push(newAnimation);
@@ -1618,6 +1763,11 @@ var AnimationService = (function(SerializableBase) {
         }
         var data = JSON.parse(datastring);
         var newTrigger = new SerializableTypes[data.type]();
+        if (data.type.substring(0,7) != "Trigger")
+        {
+            console.log("This is not a trigger");
+            return;
+        }
         newTrigger.deserialize(data);
         this.triggers.push(newTrigger);
         this.triggersMap[newTrigger.name] = newTrigger;
