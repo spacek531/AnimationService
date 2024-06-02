@@ -1,6 +1,6 @@
 // Copyright (c) 2024 spacek531
 // inspired by the animator-0.0.1-lc-r3.js plugin copyrigt deanosrs 2024, released under GPL 3.0.
-var kPluginVersion = "0.3.0";
+var kPluginVersion = "0.3.3";
 var kParkStorageKey = "AnimationService";
 var gAnimationService = null;
 
@@ -12,7 +12,6 @@ var PluginMetadata = {
     authors: "Spacek",
     type: "intransient",
     licence: "GPL-3.0",
-    minApiVersion: 92,
     targetApiVersion: 92,
     main: null // populated later
 };
@@ -20,7 +19,7 @@ var PluginMetadata = {
 // Remove before shipment
 
 // Also remove User Interface
-var debugSerialize = true;
+var debugSerialize = false;
 var development = true;
 if (development)
 {
@@ -381,6 +380,7 @@ var SensorEntityPosition = (function(SensorBase) {
             if (entity != null)
             {
                 var success = checkEntityPosition.call(this, entity);
+                if (success)
                 {
                     return success;
                 }
@@ -516,6 +516,7 @@ var ActionConsoleLog = (function(ActionBase) {
     __extends(ActionConsoleLog,ActionBase)
     function ActionConsoleLog()
     {
+        this.times = 0;
         ActionBase.call(this);
         this.type = "ActionConsoleLog";
         this.text = "Hello World";
@@ -619,8 +620,10 @@ var ActionTileElementSetProperties = (function(ActionBase) {
     }
     ActionTileElementSetProperties.prototype.execute = function(storage)
     {
+        console.log("Executing TileElementSetProperties");
         if (this.manifest)
         {
+                console.log("manidest");
             for (var i = 0; i < this.manifest.length; i++)
             {
                 var tileManifest = this.manifest[i];
@@ -643,6 +646,7 @@ var ActionTileElementSetProperties = (function(ActionBase) {
         }
         if (!this.minPosition || !this.maxPosition)
         {
+            console.log("position passed");
             var tileCoordinates = storage.coordinates;
             if (!tileCoordinates && storage.position)
             {
@@ -656,16 +660,19 @@ var ActionTileElementSetProperties = (function(ActionBase) {
             this.filterTile(tileCoordinates, true);
             return;
         }
+        console.log("searching",this.minPosition, this.maxPosition);
         for (var x = this.minPosition.x; x <= this.maxPosition.x; x++)
         {
             for (var y = this.minPosition.y; y <= this.maxPosition.y; y++)
             {
-                this.filterTile({x: x, y: y}, true);
+                console.log("x","y")
+                //this.filterTile({x: x, y: y}, true);
             }
         }
     };
     ActionTileElementSetProperties.prototype.filterTile = function(tileCoordinates, apply)
     {
+        console.log("Alright we searching",tileCoordinates,apply)
         var tile = map.getTile(tileCoordinates.x, tileCoordinates.y);
         if (!tile)
         {
@@ -679,6 +686,7 @@ var ActionTileElementSetProperties = (function(ActionBase) {
         for (var i = 0; i < tile.numElements; i++)
         {
             var element = tile.elements[i]
+            console.log("Filtering element",i);
             if (this.filterElement(element, minZ, maxZ))
             {
                 tileElements.push(i);
@@ -695,11 +703,13 @@ var ActionTileElementSetProperties = (function(ActionBase) {
         var baseZ = element.baseZ / 8;
         if (minZ && baseZ < minZ || maxZ && baseZ > maxZ)
         {
+            console.log("didnt meet height");
             return false;
         }
         for (key in this.filter)
         {
             var value = this.filter[key];
+            console.log("filter",key,value, element[key]);
             if (Array.isArray(value))
             {
                 if (value.indexOf(element[key]) < 0)
@@ -733,10 +743,13 @@ var ActionTileElementSetProperties = (function(ActionBase) {
             return;
         }
         var manifest = [];
+        console.log(this.minPosition.x, this.maxPosition.x, this.minPosition.y, this.maxPosition.y);
         for (var x = this.minPosition.x; x <= this.maxPosition.x; x++)
         {
+            console.log("h",x)
             for (var y = this.minPosition.y; y <= this.maxPosition.y; y++)
             {
+                console.log("Baking ",{x:x,y:y});
                 var tileElements = this.filterTile({x: x, y: y}, false);
                 if (tileElements.length > 0)
                 {
@@ -976,7 +989,7 @@ var ActionPlayAnimation = (function(ActionBase) {
                     trigger[key] = this.storage.key;
                 }
                 animation.initialize(trigger,storage.globalCurrentTick);
-                console.log("ActionPlayAnimation playing",target);
+                //console.log("ActionPlayAnimation playing",target);
             }
         }
     };
@@ -1008,7 +1021,7 @@ var ActionStopAnimation = (function(ActionBase) {
             //        trigger[key] = this.storage.key;
              ///   }
                 animation.stop(storage.globalCurrentTick);
-                console.log("ActionStopAnimation stopping",target);
+                //console.log("ActionStopAnimation stopping",target);
             }
         }
     };
@@ -1188,6 +1201,24 @@ var TriggerBase = (function (SerializableBase) {
         this.sensors.push(newSensor);
         return newSensor;
     };
+    TriggerBase.prototype.addSensor = function(datastring)
+    {
+        if (datastring === undefined)
+        {
+            console.log("Usage: addSensor(datastring: string): SensorBase where datastring is json representing a sensor");
+            return;
+        }
+        var data = JSON.parse(datastring);
+        if (data.type.substring(0,6) != "Sensor")
+        {
+            console.log("Root object is not a sensor");
+            return;
+        }
+        var newAction = new SerializableTypes[data.type]();
+        newAction.deserialize(data);
+        this.sensors.push(newAction);
+        return newAction;
+    };
     TriggerBase.prototype.newAction = function(actionType)
     {
         return newAction( actionType, this.actions);
@@ -1242,6 +1273,7 @@ var AnimationFrame = (function(SerializableBase) {
         }
         for (var i = 0; i < this.actions.length; i++)
         {
+            //console.log("Executing action",i,"of animation")
             this.actions[i].enabled && this.actions[i].execute(storage);
         }
         return (this.maxIndex !== null && currentFrame == this.maxIndex) || (this.index !== null && currentFrame == this.index);
@@ -1312,7 +1344,7 @@ var AnimationPlayer = (function(SerializableBase) {
                 this.currentLoop++;
                 this.storage.currentLoop++;
                 this.currentStartFrame = 0;
-                this.currentTick = -1;
+                this.currentTick = this.animation.tickInterval > 0 ? -this.animation.tickInterval + 1 : -1;
                 this.currentFrame = -1;
             }
         }
@@ -1345,7 +1377,9 @@ var AnimationBase = (function(SerializableBase) {
     AnimationBase.prototype.initialize = function(trigger, globalCurrentTick)
     {
         if ((this.playingAnimations.length > 0 && !this.allowMultiple) || !this.enabled)
+        {
             return;
+        }
         this.storage.trigger = trigger;
         var newAnimationPlayer = new AnimationPlayer(this);
         this.playingAnimations.push(newAnimationPlayer);
@@ -1353,7 +1387,7 @@ var AnimationBase = (function(SerializableBase) {
     // not tested
     AnimationBase.prototype.stop = function(globalCurrentTick)
     {
-        for (var k = 0; k < this.playingAnimations; k++)
+        for (var k = 0; k < this.playingAnimations.length; k++)
         {
             var storage = this.playingAnimations[k].storage;
             storage.globalCurrentTick = globalCurrentTick ? storage.globalCurrentTick : storage.globalCurrentTick;
@@ -1539,7 +1573,7 @@ var AnimationService = (function(SerializableBase) {
         // step 2. increment already-running animations
         for (var i = 0; i < this.animations.length; i++)
         {
-            var animation = this.animations[i]
+            var animation = this.animations[i];
             animation.playingAnimations.length > 0 && animation.tick(this.tickCount);
         }
     };
@@ -1553,9 +1587,8 @@ var AnimationService = (function(SerializableBase) {
                 var triggerData = {type:"TriggerOnLoad",name: trigger.name};
                 trigger.execute(triggerData);
                 for (var k = 0; k < trigger.targetAnimations.length; k++)
-                {
+                 {
                     var animation = this.animationsMap[trigger.targetAnimations[k]];
-                    console.log("animation type", typeof animation == 'object')
                     if (typeof animation == 'object' && animation.enabled)
                     {
                         animation.initialize(triggerData,this.tickCount);
@@ -1700,7 +1733,7 @@ var AnimationService = (function(SerializableBase) {
                 var index = this.animations.indexOf(this.animationsMap[name]);
                 if (index > -1)
                 {
-                    this.animations.splice(index);
+                    this.animations.splice(index,1);
                 }
                 this.animationsMap[name] = undefined;
                 return;
@@ -1717,7 +1750,7 @@ var AnimationService = (function(SerializableBase) {
                 var index = this.animations.indexOf(this.triggersMap[name]);
                 if (index > -1)
                 {
-                    this.triggers.splice(index);
+                    this.triggers.splice(index,1);
                 }
                 this.triggersMap[name] = undefined;
                 return;
@@ -1734,6 +1767,14 @@ var AnimationService = (function(SerializableBase) {
     {
         if (name in this.triggersMap)
             return this.triggersMap[name];
+    };
+    AnimationService.prototype.play = function(animationName,args)
+    {
+        this.animationsMap[animationName].initialize(args)
+    };
+    AnimationService.prototype.stop = function(animationName,args)
+    {
+        this.animationsMap[animationName].stop(args)
     };
     AnimationService.prototype.addAnimation = function(datastring)
     {
