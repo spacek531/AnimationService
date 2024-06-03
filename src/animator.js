@@ -1,6 +1,6 @@
 // Copyright (c) 2024 spacek531
 // inspired by the animator-0.0.1-lc-r3.js plugin copyrigt deanosrs 2024, released under GPL 3.0.
-var kPluginVersion = "0.3.3";
+var kPluginVersion = "0.3.4";
 var kParkStorageKey = "AnimationService";
 var gAnimationService = null;
 
@@ -1363,6 +1363,7 @@ var AnimationBase = (function(SerializableBase) {
         this.name = "Animation";
         this.enabled = true;
         this.defaultEnabled = true;
+        this.disableOnPlay = false;
         this.numLoops = 0; //number | null null for infinite
         this.tickInterval = 1;
         this.allowMultiple = false; // allow animation to play multiple times simultaneously
@@ -1371,7 +1372,7 @@ var AnimationBase = (function(SerializableBase) {
         this.storage = {}; //all additional properties
         this.playingAnimations = []; // Array<AnimationPlayer>
         this.quitActions = []; // Array<ActionBase>
-        this.addSerializableProperties(["name","enabled","numLoops","tickInterval","allowMultiple","persistentStorage","storage","defaultEnabled"]);
+        this.addSerializableProperties(["name","enabled","numLoops","tickInterval","allowMultiple","persistentStorage","storage","defaultEnabled","disableOnPlay"]);
         this.addSerializableArrays(["animationFrames", "quitActions"]);
     };
     AnimationBase.prototype.initialize = function(trigger, globalCurrentTick)
@@ -1382,6 +1383,7 @@ var AnimationBase = (function(SerializableBase) {
         }
         this.storage.trigger = trigger;
         var newAnimationPlayer = new AnimationPlayer(this);
+        this.enabled = this.disabledOnPlay;
         this.playingAnimations.push(newAnimationPlayer);
     };
     // not tested
