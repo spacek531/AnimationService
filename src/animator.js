@@ -988,7 +988,7 @@ var ActionPlayAnimation = (function(ActionBase) {
                 {
                     trigger[key] = this.storage.key;
                 }
-                animation.initialize(trigger,storage.globalCurrentTick);
+                animation.play(trigger,storage.globalCurrentTick);
                 //console.log("ActionPlayAnimation playing",target);
             }
         }
@@ -1375,7 +1375,7 @@ var AnimationBase = (function(SerializableBase) {
         this.addSerializableProperties(["name","enabled","numLoops","tickInterval","allowMultiple","persistentStorage","storage","defaultEnabled","disableOnPlay"]);
         this.addSerializableArrays(["animationFrames", "quitActions"]);
     };
-    AnimationBase.prototype.initialize = function(trigger, globalCurrentTick)
+    AnimationBase.prototype.play = function(trigger, globalCurrentTick)
     {
         if ((this.playingAnimations.length > 0 && !this.allowMultiple) || !this.enabled)
         {
@@ -1567,7 +1567,7 @@ var AnimationService = (function(SerializableBase) {
                     var animation = this.animationsMap[trigger.targetAnimations[k]];
                     if (typeof animation == 'object' && animation.enabled)
                     {
-                        animation.initialize(triggerData,this.tickCount);
+                        animation.play(triggerData,this.tickCount);
                     }
                 }
             }
@@ -1593,7 +1593,7 @@ var AnimationService = (function(SerializableBase) {
                     var animation = this.animationsMap[trigger.targetAnimations[k]];
                     if (typeof animation == 'object' && animation.enabled)
                     {
-                        animation.initialize(triggerData,this.tickCount);
+                        animation.play(triggerData,this.tickCount);
                     }
                 }
             }
@@ -1772,7 +1772,7 @@ var AnimationService = (function(SerializableBase) {
     };
     AnimationService.prototype.play = function(animationName,args)
     {
-        this.animationsMap[animationName].initialize(args)
+        this.animationsMap[animationName].play(args)
     };
     AnimationService.prototype.stop = function(animationName,args)
     {
