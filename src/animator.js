@@ -964,7 +964,7 @@ var ActionEntityIncrementProperties = (function(ActionBase) {
 })(ActionBase);
 SerializableTypes.ActionEntityIncrementProperties = ActionEntityIncrementProperties;
 
-// not verified
+// verified working
 var ActionPlayAnimation = (function(ActionBase) {
     __extends(ActionPlayAnimation, ActionBase);
     function ActionPlayAnimation()
@@ -997,7 +997,7 @@ var ActionPlayAnimation = (function(ActionBase) {
 })(ActionBase);
 SerializableTypes.ActionPlayAnimation = ActionPlayAnimation;
 
-// not verified
+// verified working
 var ActionStopAnimation = (function(ActionBase) {
     __extends(ActionStopAnimation, ActionBase);
     function ActionStopAnimation()
@@ -1103,6 +1103,42 @@ var ActionTriggerSetProperties = (function(ActionBase) {
     return ActionTriggerSetProperties;
 })(ActionBase)
 SerializableTypes.ActionTriggerSetProperties = ActionTriggerSetProperties;
+
+// not verified
+var ActionSpawnCrashedVehicleParticle = (function(ActionBase) {
+    __extends(ActionSpawnCrashedVehicleParticle, ActionBase);
+    function ActionSpawnCrashedVehicleParticle()
+    {
+        ActionBase.call(this);
+        this.type = "ActionSpawnCrashedVehicleParticle";
+        this.particles = []; // Array<CrashParticleLaunchData>
+        this.addSerializableProperties(["targets","particles"]);
+    }
+    ActionSpawnCrashedVehicleParticle.prototype.execute = function(storage)
+    {
+        for (var i = 0; i < this.particles.length; i++)
+        {
+            var properties = this.particles[i];
+            var x = properties.x;
+            var y = properties.y;
+            var z = properties.z;
+            if (typeof x != 'number' && storage.position)
+            {
+                x = storage.position.x;
+                y = storage.position.y;
+                z = storage.position.z;
+            }
+            var ent = map.createEntity("crashed_vehicle_particle",{x: x, y: y, z: z});
+            if (!ent)
+            {
+                return;
+            }
+            ent.launch(properties);
+        }
+    };
+    return ActionSpawnCrashedVehicleParticle;
+})(ActionBase)
+SerializableTypes.ActionSpawnCrashedVehicleParticle = ActionSpawnCrashedVehicleParticle;
 
 // Triggers evaluate all sensors and trigger only if all sensors return true.
 var TriggerBase = (function (SerializableBase) {
@@ -1298,6 +1334,7 @@ var AnimationPlayer = (function(SerializableBase) {
         this.type = "AnimationPlayer";
         this.animation = animationBase;
         this.currentTick = -1;
+        this.startTick = null;
         this.currentFrame = -1; // initialize at -1 to trigger inequal comparison
         this.currentLoop = 0;
         this.currentStartFrame = 0;
@@ -1311,7 +1348,7 @@ var AnimationPlayer = (function(SerializableBase) {
         {
             Object.assign(this.storage, animationBase.storage);
         }
-        this.addSerializableProperties(["currentTick","currentFrame","currentLoop","storage","currentStartFrame"]);
+        this.addSerializableProperties(["currentTick","currentFrame","currentLoop","storage","currentStartFrame","startTick"]);
     };
     AnimationPlayer.prototype.playFrame = function(currentFrame)
     {
@@ -1327,9 +1364,13 @@ var AnimationPlayer = (function(SerializableBase) {
         }
         return this.currentStartFrame == this.animation.animationFrames.length;
     };
+    // Returns true if the animation is finished playing
     AnimationPlayer.prototype.nextTick = function(globalCurrentTick)
     {
-        // Returns true if the animation is finished playing
+        if (this.startTick == globalCurrentTick)
+        {
+            return false; // already played this tick
+        }
         this.currentTick++;
         if ((this.currentTick % this.animation.tickInterval) == 0)
         {
@@ -1337,7 +1378,7 @@ var AnimationPlayer = (function(SerializableBase) {
             this.storage.currentTick = this.currentTick;
             if (this.playFrame(++this.currentFrame))
             {
-                if (this.currentLoop == this.animation.numLoops)
+                if (this.animation.numLoops !== null && this.currentLoop >= this.animation.numLoops)
                 {
                     return true;
                 }
@@ -1383,7 +1424,9 @@ var AnimationBase = (function(SerializableBase) {
         }
         this.storage.trigger = trigger;
         var newAnimationPlayer = new AnimationPlayer(this);
-        this.enabled = this.disabledOnPlay;
+        newAnimationPlayer.nextTick(globalCurrentTick);
+        newAnimationPlayer.startTick = globalCurrentTick;
+        this.enabled = !this.disabledOnPlay;
         this.playingAnimations.push(newAnimationPlayer);
     };
     // not tested
@@ -1415,6 +1458,10 @@ var AnimationBase = (function(SerializableBase) {
     AnimationBase.prototype.deserialize = function(data)
     {
         SerializableBase.prototype.deserialize.call(this, data);
+        if (gAnimationService.version == "0.3.2" && this.numLoops == -1)
+        {
+            this.numLoops = null;
+        }
         if ("playingAnimations" in data)
         {
             for (i = 0; i < data.playingAnimations.length; i++)
@@ -1519,6 +1566,7 @@ var AnimationService = (function(SerializableBase) {
     function AnimationService()
     {
         SerializableBase.call(this);
+        gAnimationService = this;
         this.type = "AnimationService";
         this.initialize();
         this.serializableProperties = ["tickCount","version","paused","authors"];
@@ -1586,8 +1634,7 @@ var AnimationService = (function(SerializableBase) {
             var trigger = this.triggers[i];
             if (trigger.type == "TriggerOnLoad" && trigger.enabled)
             {
-                var triggerData = {type:"TriggerOnLoad",name: trigger.name};
-                trigger.execute(triggerData);
+                var triggerData = trigger.test();
                 for (var k = 0; k < trigger.targetAnimations.length; k++)
                  {
                     var animation = this.animationsMap[trigger.targetAnimations[k]];
@@ -1929,7 +1976,7 @@ var AnimationService = (function(SerializableBase) {
         }
         for (var i = 0; i < this.serializeObjectArrays.length; i++)
         {
-            var key = this.serializeObjectArrays[i]
+            var key = this.serializeObjectArrays[i];
             var data2 = [];
             for (var k = 0; k < this[key].length; k++)
             {
@@ -1942,6 +1989,6 @@ var AnimationService = (function(SerializableBase) {
     return AnimationService;
 })(SerializableBase);
 
-PluginMetadata.main = function() {gAnimationService = new AnimationService(); globalThis.animation = gAnimationService;};
+PluginMetadata.main = function() {new AnimationService(); globalThis.animation = gAnimationService;};
 
 registerPlugin(PluginMetadata);
