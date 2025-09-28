@@ -1,13 +1,13 @@
-// Copyright (c) 2024 spacek531
+// Copyright (c) 2024 spacek531, released under GLP 3.0.
 // inspired by the animator-0.0.1-lc-r3.js plugin copyrigt deanosrs 2024, released under GPL 3.0.
-var kPluginVersion = "0.3.4";
+var kPluginVersion = "0.3.3";
 var kParkStorageKey = "AnimationService";
 var gAnimationService = null;
 
 var yawName = "yaw"
 
 var PluginMetadata = {
-    name: "AnimationService Spacek",
+    name: "AnimationService",
     version: kPluginVersion,
     authors: "Spacek",
     type: "intransient",
@@ -16,9 +16,6 @@ var PluginMetadata = {
     main: null // populated later
 };
 
-// Remove before shipment
-
-// Also remove User Interface
 var debugSerialize = false;
 var development = true;
 if (development)
