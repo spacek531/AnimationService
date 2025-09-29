@@ -3,7 +3,7 @@
 	"version": "0.0.4",
 	"type": "module",
 	"scripts": {
-		"build": "rollup --config rollup.config-player.js; rollup --config rollup.config-editor.js"
+		"build": "rollup --config rollup.config-develop.js"
 	},
 	"author": "Spacek531",
 	"license": "GPL3.0",

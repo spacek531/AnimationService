@@ -8,7 +8,7 @@ import typescript from "@rollup/plugin-typescript";
 const config = {
 	input: "./src/player.ts",
 	output: {
-		file: "./dist/player.js",
+		file: "./dist/AnimationService-player.js",
 		format: "iife",
 	},
 	plugins: [
