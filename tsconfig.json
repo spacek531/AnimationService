@@ -1,0 +1,32 @@
+{
+	"compilerOptions": {
+		"baseUrl": ".",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"module": "ES2020",
+		"moduleResolution": "node",
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitAny": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noImplicitThis": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"preserveConstEnums": false,
+		"paths": {
+			"@src/*": [ "src/*" ]
+		},
+		"strict": true,
+		"target": "ES5",
+		"lib": [ "ES5", "ES2015.Iterable" ],
+	},
+	"include": [
+		"./lib/**/*.ts",
+		"./src/**/*.ts",
+		"./tests/**/*.ts"
+	],
+	"exclude": [
+		"./dist/**/*"
+	],
+	"noEmit": true
+}
