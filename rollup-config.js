@@ -3,12 +3,12 @@ import replace from "@rollup/plugin-replace";
 import terser from "@rollup/plugin-terser";
 import typescript from "@rollup/plugin-typescript";
 import { getConfigHome, getDocumentsFolder } from "platform-folders";
-import { pluginVersion } from "./src/utilities/environment";
 
 
 // Environment variables
 const build = process.env.BUILD || "development";
 const isDev = (build === "development");
+const pluginVersion = "0.4.0";
 
 /**
  * Tip: if you change the path here to your personal user folder,

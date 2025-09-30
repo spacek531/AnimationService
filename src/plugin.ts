@@ -35,7 +35,7 @@ function startup(): void
 };
 
 let pluginMetadata: PluginMetadata = {
-    name: "AnimationService",
+    name: "AnimationService2",
     version: Environment.pluginVersion,
     authors: "Spacek",
     type: "intransient",
