@@ -133,7 +133,7 @@ export class SerializableBase {
 	 * Cleanup object arrays.
 	 */
 	delete(): void {
-		for (const key of this.serializableObjectArrays) {
+		for (const key of this.serializeObjectArrays) {
 			var objectArray: Array<SerializableBase> = this[key];
 			for (var k = objectArray.length - 1; k >= 0; k--) {
 				objectArray[k].delete();

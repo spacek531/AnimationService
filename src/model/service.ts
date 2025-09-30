@@ -1,7 +1,8 @@
 /// <reference path="../../lib/openrct2.d.ts" />
 
 import { debug, print } from "../utilities/logger"
-import { pluginVersion, parkStorageKey } from "../utilities/environment"
+import { parkStorageKey } from "../utilities/environment"
+import { version as pluginVersion } from "../info.js"
 import { SerializableBase } from "./base/serializable"
 import { TriggerBase } from "./base/trigger"
 import { AnimationBase } from "./base/animation"
@@ -44,7 +45,7 @@ export class AnimationService extends SerializableBase {
 	
 	
 	/**
-	 * I don't remember what this is.
+	 * If there is any data worth saving.
 	 */
 	shouldSave!: boolean;
 	
@@ -98,7 +99,7 @@ export class AnimationService extends SerializableBase {
 	/**
 	 * Increment animation state by 1 tick.
 	 */
-	tick(): void {
+	onTick(): void {
 		if (this.paused) {
 			return;
 		}
@@ -145,7 +146,7 @@ export class AnimationService extends SerializableBase {
 	/**
 	 * The game has loaded a new map.
 	 */
-	onLoad(): void {
+	onMapChanged(): void {
 		this.unload();
 		this.load();
 	}

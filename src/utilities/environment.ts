@@ -2,19 +2,6 @@
 
 
 /**
- * The version of OpenRCT2 the plugin supports.
- */
-export const targetApiVersion = 92;
-export const requiredApiVersion = 92;
-
-
-/**
- * Returns the current version of the plugin.
- */
-export const pluginVersion = "0.4.0";
-
-
-/**
  * Returns the key used to access park storage data.
  */
 export const parkStorageKey = "AnimationService";

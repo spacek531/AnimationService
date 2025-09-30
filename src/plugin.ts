@@ -3,12 +3,12 @@
 
 import * as Environment from "./utilities/environment";
 import * as Log from "./utilities/logger";
+import * as Info from "./info.js";
 import getAnimationService from "./model/getService";
 
 /**
  * Entry point of the plugin.
  */
-// @ts-ignore
 function startup(): void
 {
 	getAnimationService();
@@ -18,9 +18,9 @@ function startup(): void
 		return;
 	}
 	
-	ui.registerMenuItem("Animation Service " + Environment.pluginVersion, () =>
+	ui.registerMenuItem("Animation Service " + Info.version, () =>
 	{
-		if (!context.apiVersion || context.apiVersion < Environment.requiredApiVersion)
+		if (!context.apiVersion || context.apiVersion < Info.minApiVersion)
 		{
 			const title = "Please update the game!";
 			const message = "\nThe version of OpenRCT2 you are currently playing is too old for this plugin.";
@@ -35,13 +35,13 @@ function startup(): void
 };
 
 let pluginMetadata: PluginMetadata = {
-    name: "AnimationService2",
-    version: Environment.pluginVersion,
-    authors: "Spacek",
-    type: "intransient",
-    licence: "GPL-3.0",
-    targetApiVersion: Environment.targetApiVersion,
-	minApiVersion: Environment.requiredApiVersion,
+    name: Info.name,
+    version: Info.version,
+    authors: Info.authors,
+    type: Info.type,
+    licence: Info.license,
+    targetApiVersion: Info.targetApiVersion,
+	minApiVersion: Info.minApiVersion,
     main: startup
 };
 
