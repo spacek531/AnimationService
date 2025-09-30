@@ -1,6 +1,5 @@
 /// <reference path="./environment.d.ts" />
 
-
 /**
  * Returns the key used to access park storage data.
  */
@@ -43,3 +42,21 @@ export const isProduction = (buildConfiguration === "production");
  * Returns true if the current build is a production build.
  */
 export const isDevelopment = (buildConfiguration === "development");
+
+
+/**
+ * Plugin version. Saved with animation data to use when importing data made in older versions.
+ */
+export const pluginVersion = 5;
+
+
+/**
+ * OpenRCT2 plugin API target.
+ */
+export const targetApiVersion = 96
+
+
+/**
+ * OpenRCT2 API version required to run the plugin version.
+ */
+export const minApiVersion = 96;

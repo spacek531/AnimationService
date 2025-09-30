@@ -1,8 +1,7 @@
 /// <reference path="../../lib/openrct2.d.ts" />
 
-import { debug, print } from "../utilities/logger"
-import { parkStorageKey } from "../utilities/environment"
-import { version as pluginVersion } from "../info.js"
+import * as Log from "../utilities/logger";
+import { parkStorageKey, pluginVersion } from "../utilities/environment"
 import { SerializableBase } from "./base/serializable"
 import { TriggerBase } from "./base/trigger"
 import { AnimationBase } from "./base/animation"
@@ -27,9 +26,15 @@ export class AnimationService extends SerializableBase {
 	
 	
 	/**
-	 * Target plugin version of the animation data.
+	 * Current version of the plugin.
 	 */
-	version!: string;
+	pluginVersion!: number;
+	
+	
+	/**
+	 * Version the animation data was written for.
+	 */
+	animationVersion!: number;
 	
 	
 	/**
@@ -67,17 +72,23 @@ export class AnimationService extends SerializableBase {
 	 */
 	animationsMap!: Record<string, AnimationBase>;
 	
+	/**
+	 * Stores the connections for disposing of later, if a newer version of the plugin loads.
+	 */
+	onTickConnection: IDisposable | null;
+	onMapChangedConnection: IDisposable | null;
+	onMapSaveConnection: IDisposable | null;
 	
 	constructor() {
 		super();
 		this.type = "AnimationService";
 		this.initialize()
-		this.serializableProperties = ["tickCount", "version", "paused", "authors"]; // do not serialize type. TODO: why?
+		this.serializableProperties = ["tickCount", "animationVersion", "paused", "authors"]; // do not serialize type. TODO: why?
 		this.addSerializableArrays(["triggers", "animations"])
 		
-		context.subscribe("interval.tick",this.onTick.bind(this));
-		context.subscribe("map.changed", this.onMapChanged.bind(this));
-		context.subscribe("map.save", this.onMapSave.bind(this));
+		this.onTickConnection = context.subscribe("interval.tick",this.onTick.bind(this));
+		this.onMapChangedConnection = context.subscribe("map.changed", this.onMapChanged.bind(this));
+		this.onMapSaveConnection = context.subscribe("map.save", this.onMapSave.bind(this));
 	}
 	
 	/**
@@ -86,7 +97,8 @@ export class AnimationService extends SerializableBase {
 	initialize(): void {
 		this.tickCount = 0;
 		this.paused = false;
-		this.version = pluginVersion;
+		this.pluginVersion = pluginVersion;
+		this.animationVersion = pluginVersion;
 		this.authors = [];
 		this.triggers = [];
 		this.animations = [];
@@ -136,6 +148,29 @@ export class AnimationService extends SerializableBase {
 	// Automatic Data Handling
 	
 	/**
+	 * Called if the AnimationService is running and a newer version of the plugin loads.
+	 */
+	disable(): void {
+		if (this.onTickConnection)
+		{
+			this.onTickConnection.dispose();
+			this.onTickConnection = null;
+		}
+		if (this.onMapSaveConnection)
+		{
+			this.onMapSaveConnection.dispose();
+			this.onMapSaveConnection = null;
+		}
+		if (this.onMapChangedConnection)
+		{
+			this.onMapChangedConnection.dispose();
+			this.onMapChangedConnection = null;
+		}
+		this.delete();
+	}
+	
+	
+	/**
 	 * Deletes all data and re-initializes AnimationService.
 	 */
 	unload(): void {
@@ -169,7 +204,7 @@ export class AnimationService extends SerializableBase {
         this.shouldSave = data.version !== null;
         if (this.shouldSave)
         {
-			debug("[AnimationService] Loading animation data from park storage");
+			Log.debug("Loading animation data from park storage");
             this.deserialize(data);
             this.triggerOnLoad();
         }
@@ -189,10 +224,10 @@ export class AnimationService extends SerializableBase {
 	override deserialize(data: Record<string, any>): void {
 		this.initialize();
 		this.shouldSave = true;
-		debug("[AnimationService] Loaded with", this.animations.length, "animations and", this.triggers.length, "triggers.");
+		Log.debug("Loaded with", this.animations.length, "animations and", this.triggers.length, "triggers.");
 		if (this.paused)
 		{
-			print("[AnimationService] Loaded from park data in paused state");
+			Log.print("Loaded from park data in paused state");
 		}
 	}
 	
@@ -212,7 +247,7 @@ export class AnimationService extends SerializableBase {
 			}
 			context.getParkStorage(parkStorageKey).set(key, data);
 		}
-		debug("[AnimationService] Data saved to park storage");
+		Log.debug("Data saved to park storage");
 	}
 	
 	// User I/O
@@ -224,7 +259,7 @@ export class AnimationService extends SerializableBase {
 		for (const trigger of this.triggers) {
 			trigger.currentTimeout = 0
 			trigger.enabled = trigger.defaultEnabled;
-			debug("Set trigger ",trigger.name, "enabled to", trigger.enabled, "and currentTimeout to 0");
+			Log.debug("Set trigger ",trigger.name, "enabled to", trigger.enabled, "and currentTimeout to 0");
 		}
 	}
 	
@@ -236,7 +271,7 @@ export class AnimationService extends SerializableBase {
 		this.animations.forEach( (animation) => {
 			animation.stop(this.tickCount);
 			animation.enabled = animation.defaultEnabled;
-			debug("Set animation",animation.name, "enabled to", animation.enabled);
+			Log.debug("Set animation",animation.name, "enabled to", animation.enabled);
 		});
 	}
 	

@@ -1,4 +1,4 @@
-import { isDevelopment } from "./environment";
+import { isDevelopment, pluginVersion } from "./environment";
 
 
 /**
@@ -9,7 +9,7 @@ export function debug(...args: any[]): void
 {
 	if (isDevelopment)
 	{
-		console.log(...args);
+		console.log("[AnimationService-v"+pluginVersion+"]",...args);
 	}
 }
 
@@ -20,7 +20,7 @@ export function debug(...args: any[]): void
  */
 export function print(...args: any[]): void
 {
-	console.log(...args);
+	console.log("[AnimationService-v"+pluginVersion+"]",...args);
 }
 
 

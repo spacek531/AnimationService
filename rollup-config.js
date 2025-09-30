@@ -57,7 +57,8 @@ const config = {
 				__BUILD_CONFIGURATION__: JSON.stringify(build),
 				...(isDev ? {} : {
 					"Log.debug": "//",
-					"Log.assert": "//"
+					"Log.assert": "//",
+					"Log.print": "//"
 				})
 			}
 		}),

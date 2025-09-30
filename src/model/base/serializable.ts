@@ -1,7 +1,7 @@
 /// <reference path="../../../lib/openrct2.d.ts" />
 
 import { debugSerialize } from "../../utilities/environment"
-import { error } from "../../utilities/logger"
+import * as Log from "../../utilities/logger";
 
 // Define a constructor type for SerializableBase and its subclasses
 type Constructor<T> = new (...args: any[]) => T;
@@ -91,7 +91,7 @@ export class SerializableBase {
 	deserialize(data: Record<string, any>): void {
 		// Check if data is poisoned (contains a deserialize method)
 		if ("deserialize" in data) {
-			error("Poisoned data detected:" + new Error().stack);
+			Log.error("Poisoned data detected:" + new Error().stack);
 			return;
 		}
 
@@ -110,7 +110,7 @@ export class SerializableBase {
 				for (const currentData of arrayData) {
 					// Poison check
 					if ("deserialize" in currentData) {
-						error(
+						Log.error(
 							"Data should not be an initialized object!" + 
 							{ arrayName, currentData } +
 							new Error().stack

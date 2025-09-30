@@ -13,7 +13,6 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": false,
 		"preserveConstEnums": false,
-		"allowJs": true,
 		"paths": {
 			"@src/*": [ "src/*" ]
 		},
