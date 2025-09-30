@@ -3,7 +3,7 @@ import replace from "@rollup/plugin-replace";
 import terser from "@rollup/plugin-terser";
 import typescript from "@rollup/plugin-typescript";
 import { getConfigHome, getDocumentsFolder } from "platform-folders";
-import pluginVersion from "./utilities/environment";
+import { pluginVersion } from "./src/utilities/environment";
 
 
 // Environment variables

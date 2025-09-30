@@ -1,14 +1,23 @@
-/// <reference path="environment.d.ts" />
+/// <reference path="./environment.d.ts" />
+
+
+/**
+ * The version of OpenRCT2 the plugin supports.
+ */
+export const targetApiVersion = 92;
+export const requiredApiVersion = 92;
+
 
 /**
  * Returns the current version of the plugin.
  */
-export const pluginVersion = "__PLUGIN_VERSION__";
+export const pluginVersion = "0.4.0";
+
 
 /**
- * Returns the build configuration of the plugin.
+ * Returns the key used to access park storage data.
  */
-export const buildConfiguration: BuildConfiguration = __BUILD_CONFIGURATION__;
+export const parkStorageKey = "AnimationService";
 
 
 /**
@@ -36,3 +45,14 @@ export function isMultiplayer(): boolean
 {
 	return (network.mode !== "none");
 }
+
+
+/**
+ * Includes default values when serializing.
+ */
+export var debugSerialize: boolean = false;
+
+/**
+ * Returns the build configuration of the plugin. Set by the build actions.
+ */
+export const buildConfiguration: BuildConfiguration = __BUILD_CONFIGURATION__;

@@ -3,7 +3,7 @@ import replace from "@rollup/plugin-replace";
 import terser from "@rollup/plugin-terser";
 import typescript from "@rollup/plugin-typescript";
 import { getConfigHome, getDocumentsFolder } from "platform-folders";
-import pluginVersion from "./utilities/environment";
+import pluginVersion from "./src/utilities/environment";
 
 
 // Environment variables
@@ -54,37 +54,24 @@ const config = {
 		replace({
 			preventAssignment: true,
 			values: {
-				__BUILD_CONFIGURATION__: JSON.stringify(build),
-				...(isDev ? {} : {
-					"Log.debug": "//",
-					"Log.assert": "//"
-				})
+				__BUILD_CONFIGURATION__: JSON.stringify("development")
 			}
 		}),
 		typescript(),
 		terser({
 			compress: {
-				passes: 5,
-				toplevel: true,
-				unsafe: true
+				passes: 3
 			},
 			format: {
-				comments: false,
 				quote_style: 1,
 				wrap_iife: true,
 				preamble: "// Get the latest version: https://github.com/spacek531/AnimationService",
 
-				beautify: isDev,
-			},
-			mangle: isDev ? {}
-			: {
-				properties: {
-					regex: /^_/
-				}
+				beautify: true,
 			},
 
 			// Useful only for stacktraces:
-			keep_fnames: isDev,
+			keep_fnames: true,
 		}),
 	],
 };

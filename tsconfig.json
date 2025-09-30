@@ -11,14 +11,14 @@
 		"noImplicitReturns": true,
 		"noImplicitThis": true,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true,
+		"noUnusedParameters": false,
 		"preserveConstEnums": false,
 		"paths": {
 			"@src/*": [ "src/*" ]
 		},
 		"strict": true,
 		"target": "ES5",
-		"lib": [ "ES5", "ES2015.Iterable" ],
+		"lib": [ "ES5", "ES2015.Iterable", "es2015" ],
 	},
 	"include": [
 		"./lib/**/*.ts",
